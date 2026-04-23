@@ -2,100 +2,64 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control IoT UDLA - Jesús Berroeta</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js" type="text/javascript"></script>
-    
+    <title>Control IoT - Jesús Berroeta</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #1a1a2e; color: white; text-align: center; margin: 0; padding: 20px; }
-        .card { background: #16213e; border-radius: 15px; padding: 25px; display: inline-block; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #0f3460; max-width: 400px; width: 100%; }
-        h1 { color: #e94560; margin-bottom: 10px; }
-        #status { font-weight: bold; margin-bottom: 25px; padding: 10px; border-radius: 5px; background: #0f3460; }
-        .led-section { margin-bottom: 30px; padding: 15px; border-top: 1px solid #0f3460; }
-        .btn { border: none; color: white; padding: 15px 32px; text-align: center; text-decoration: none; display: inline-block; font-size: 16px; margin: 4px 2px; cursor: pointer; border-radius: 8px; font-weight: bold; transition: 0.3s; width: 120px; }
-        .btn-on { background-color: #27ae60; }
-        .btn-on:hover { background-color: #2ecc71; box-shadow: 0 0 15px #2ecc71; }
-        .btn-off { background-color: #c0392b; }
-        .btn-off:hover { background-color: #e74c3c; box-shadow: 0 0 15px #e74c3c; }
+        body { font-family: sans-serif; text-align: center; background: #1a1a2e; color: white; padding-top: 50px; }
+        .card { background: #16213e; padding: 30px; border-radius: 15px; display: inline-block; border: 1px solid #e94560; }
+        .btn { padding: 15px 30px; font-size: 16px; margin: 10px; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; width: 130px; }
+        .on { background: #27ae60; color: white; }
+        .off { background: #c0392b; color: white; }
+        #status { color: #f1c40f; margin-bottom: 20px; font-weight: bold; }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <h1>Control ESP32</h1>
-        <p>Proyecto IoT - Ingeniería y Gestión</p>
-        <div id="status">Intentando conectar al servidor...</div>
+        <h1>Panel de Control ESP32</h1>
+        <div id="status">Estado: Desconectado</div>
+        
+        <h3>LED 1 (GPIO 18)</h3>
+        <button class="btn on" onclick="enviar('led1_on')">ENCENDER</button>
+        <button class="btn off" onclick="enviar('led1_off')">APAGAR</button>
 
-        <div class="led-section">
-            <h3>LED 1 (Pin D18)</h3>
-            <button class="btn btn-on" onclick="enviar('led1_on')">ON</button>
-            <button class="btn btn-off" onclick="enviar('led1_off')">OFF</button>
-        </div>
-
-        <div class="led-section">
-            <h3>LED 2 (Pin D23)</h3>
-            <button class="btn btn-on" onclick="enviar('led2_on')">ON</button>
-            <button class="btn btn-off" onclick="enviar('led2_off')">OFF</button>
-        </div>
+        <h3>LED 2 (GPIO 23)</h3>
+        <button class="btn on" onclick="enviar('led2_on')">ENCENDER</button>
+        <button class="btn off" onclick="enviar('led2_off')">APAGAR</button>
     </div>
 
     <script>
-        // --- 1. CONFIGURACIÓN DE HIVEMQ ---
-        // Copia tu Cluster URL de la consola de HiveMQ aquí
-        const broker = "15aee4ce7ff046d69f5f4fb4d2901c92.s1.eu.hivemq.cloud"; 
-        const port = 8884; // Puerto WSS para WebSockets
-        const user = "jesus+// Tu usuario de Access Management
-        const pass = "Jesu#42006"; // Tu contraseña de Access Management
-        const topic = "udla/jesus/control"; // DEBE coincidir con el del ESP32
+        // CONFIGURACIÓN (REEMPLAZA CON TUS DATOS)
+        const broker = "15aee4ce7ff046d69f5f4fb4d2901c92.s1.eu.hivemq.cloud";
+        const port = 8884; 
+        const user = "jesus+"; 
+        const pass = "Jesu#42006";
+        const topic = "udla/jesus/control"; // Mismo que en Arduino
 
-        // --- 2. CLIENTE MQTT ---
         const client = new Paho.MQTT.Client("wss://" + broker + ":" + port + "/mqtt", "web_client_" + Math.random());
 
         const options = {
             useSSL: true,
             userName: user,
             password: pass,
-            onSuccess: onConnect,
+            onSuccess: () => {
+                document.getElementById("status").innerHTML = "Estado: Conectado a HiveMQ";
+                document.getElementById("status").style.color = "#2ecc71";
+            },
             onFailure: (e) => {
-                document.getElementById("status").innerHTML = "Error: " + e.errorMessage;
-                document.getElementById("status").style.color = "#ff4d4d";
+                document.getElementById("status").innerHTML = "Error de conexión: " + e.errorMessage;
             }
         };
 
         client.connect(options);
 
-        function onConnect() {
-            console.log("Conectado con éxito");
-            document.getElementById("status").innerHTML = "Estado: Conectado";
-            document.getElementById("status").style.color = "#2ecc71";
-        }
-
-        // --- 3. FUNCIÓN DE ENVÍO CORREGIDA ---
         function enviar(comando) {
-            // Creamos el mensaje en formato JSON
-            const mensajeJSON = JSON.stringify({ cmd: comando });
-            
-            // Creamos el objeto mensaje de Paho
-            const message = new Paho.MQTT.Message(mensajeJSON);
-            
-            // ASIGNAMOS EL TÓPICO
+            const payload = JSON.stringify({ cmd: comando });
+            const message = new Paho.MQTT.Message(payload);
             message.destinationName = topic;
-            
-            // Enviamos el mensaje al Broker
-            try {
-                client.send(message);
-                console.log("Enviado: " + mensajeJSON + " al tópico: " + topic);
-            } catch (error) {
-                console.error("Error al enviar:", error);
-            }
+            client.send(message);
+            console.log("Enviado: " + payload);
         }
-
-        // Reconexión automática si se cae la red
-        client.onConnectionLost = (responseObject) => {
-            document.getElementById("status").innerHTML = "Conexión perdida. Reconectando...";
-            document.getElementById("status").style.color = "#f1c40f";
-            client.connect(options);
-        };
     </script>
 </body>
 </html>
